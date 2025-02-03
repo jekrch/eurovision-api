@@ -21,6 +21,9 @@ func NewVoteHandler() *VoteHandler {
 	return &VoteHandler{}
 }
 
+/**
+ * Processes vote and stores in eurovision_votes index
+ */
 func (h *VoteHandler) HandleVote(w http.ResponseWriter, r *http.Request) {
 	var vote models.Vote
 	if err := json.NewDecoder(r.Body).Decode(&vote); err != nil {
@@ -56,6 +59,9 @@ func (h *VoteHandler) HandleVote(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 }
 
+/**
+ * Assigns location to vote based on IP address
+ */
 func assignLocationFromIP(vote *models.Vote) {
 
 	locationURL := fmt.Sprintf("https://ipapi.co/%s/json/", vote.IP)
@@ -74,6 +80,9 @@ func assignLocationFromIP(vote *models.Vote) {
 	}
 }
 
+/**
+ * Returns the number of votes cast
+ */
 func (h *VoteHandler) GetVoteCount(w http.ResponseWriter, r *http.Request) {
 	res, err := db.Count(
 		"eurovision_votes",

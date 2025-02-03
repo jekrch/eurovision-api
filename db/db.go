@@ -24,7 +24,10 @@ var (
 	once     sync.Once
 )
 
-// InitES initializes the Elasticsearch client and creates necessary indices
+/**
+ * Initialize the Elasticsearch client and create the users index with proper mappings.
+ * This function is idempotent and will only run once.
+ */
 func InitES() error {
 	var initErr error
 	once.Do(func() {
@@ -108,7 +111,7 @@ func EmailExists(email string) (bool, error) {
 
 	res, err := esClient.Search(
 		esClient.Search.WithIndex(usersIndex),
-		esClient.Search.WithBody(strings.NewReader(mustToJSON(query))),
+		esClient.Search.WithBody(strings.NewReader(convertToJSON(query))),
 		esClient.Search.WithContext(ctx),
 	)
 	if err != nil {
@@ -132,7 +135,7 @@ func CreateUser(user *models.User) error {
 
 	res, err := esClient.Index(
 		usersIndex,
-		strings.NewReader(mustToJSON(user)),
+		strings.NewReader(convertToJSON(user)),
 		esClient.Index.WithContext(ctx),
 		esClient.Index.WithRefresh("true"),
 	)
@@ -163,7 +166,7 @@ func GetUserByToken(token string) (*models.User, error) {
 
 	res, err := esClient.Search(
 		esClient.Search.WithIndex(usersIndex),
-		esClient.Search.WithBody(strings.NewReader(mustToJSON(query))),
+		esClient.Search.WithBody(strings.NewReader(convertToJSON(query))),
 		esClient.Search.WithContext(ctx),
 	)
 	if err != nil {
@@ -209,7 +212,7 @@ func GetUserByEmail(email string) (*models.User, error) {
 
 	res, err := esClient.Search(
 		esClient.Search.WithIndex(usersIndex),
-		esClient.Search.WithBody(strings.NewReader(mustToJSON(query))),
+		esClient.Search.WithBody(strings.NewReader(convertToJSON(query))),
 		esClient.Search.WithContext(ctx),
 	)
 	if err != nil {
@@ -241,7 +244,9 @@ func GetUserByEmail(email string) (*models.User, error) {
 	return &user, nil
 }
 
-// ConfirmUser confirms a user's email and removes their confirmation token
+/**
+ * Updates the user's confirmed status and removes the confirmation token.
+ */
 func ConfirmUser(email string) error {
 	script := map[string]interface{}{
 		"script": map[string]interface{}{
@@ -259,7 +264,7 @@ func ConfirmUser(email string) error {
 
 	res, err := esClient.UpdateByQuery(
 		[]string{usersIndex},
-		esClient.UpdateByQuery.WithBody(strings.NewReader(mustToJSON(script))),
+		esClient.UpdateByQuery.WithBody(strings.NewReader(convertToJSON(script))),
 		esClient.UpdateByQuery.WithContext(ctx),
 		esClient.UpdateByQuery.WithRefresh(true),
 	)
@@ -286,7 +291,9 @@ func ConfirmUser(email string) error {
 	return nil
 }
 
-// DeleteUnconfirmedUsers removes unconfirmed users older than the cutoff time
+/**
+ * Deletes unconfirmed users that were created before the cutoff time.
+ */
 func DeleteUnconfirmedUsers(cutoff time.Time) error {
 	query := map[string]interface{}{
 		"query": map[string]interface{}{
@@ -314,7 +321,7 @@ func DeleteUnconfirmedUsers(cutoff time.Time) error {
 
 	res, err := esClient.DeleteByQuery(
 		[]string{usersIndex},
-		strings.NewReader(mustToJSON(query)),
+		strings.NewReader(convertToJSON(query)),
 		esClient.DeleteByQuery.WithContext(ctx),
 		esClient.DeleteByQuery.WithRefresh(true),
 	)
@@ -330,8 +337,10 @@ func DeleteUnconfirmedUsers(cutoff time.Time) error {
 	return nil
 }
 
-// Helper function to convert interface to JSON string
-func mustToJSON(v interface{}) string {
+/**
+ * Converts a value to JSON string.
+ */
+func convertToJSON(v interface{}) string {
 	b, err := json.Marshal(v)
 	if err != nil {
 		panic(fmt.Sprintf("error marshaling to JSON: %v", err))
@@ -339,6 +348,9 @@ func mustToJSON(v interface{}) string {
 	return string(b)
 }
 
+/**
+ * Generates doc in the provided index.
+ */
 func Index(index string, body *strings.Reader) (*esapi.Response, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -356,6 +368,9 @@ func Index(index string, body *strings.Reader) (*esapi.Response, error) {
 	return res, nil
 }
 
+/**
+ * Counts the number of docs in the provided index.
+ */
 func Count(index string) (*esapi.Response, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
