@@ -19,11 +19,8 @@ func main() {
 	}
 
 	jwtSecret := os.Getenv("JWT_SECRET")
-	if jwtSecret == "" {
-		jwtSecret = "your-default-secret-key" // for development only
-		log.Println("Warning: Using default JWT secret")
-	}
 
+	auth.Initialize(jwtSecret)
 	authService := auth.NewService(jwtSecret)
 
 	// Create handlers with dependencies
@@ -43,14 +40,20 @@ func main() {
 	voteRouter.HandleFunc("/vote", voteHandler.HandleVote).Methods("POST")
 	voteRouter.HandleFunc("/votes/count", voteHandler.GetVoteCount).Methods("GET")
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
+	port := getPort()
 
 	// Start cleanup goroutine for unconfirmed users
 	go auth.StartCleanupJob()
 
 	log.Printf("Server starting on port %s", port)
 	log.Fatal(http.ListenAndServe(":"+port, r))
+}
+
+func getPort() string {
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	return port
 }

@@ -52,7 +52,6 @@ func validatePassword(password string) error {
 	if len(password) < minPasswordLen {
 		return ErrWeakPassword
 	}
-	// Add more password strength requirements here
 	return nil
 }
 
