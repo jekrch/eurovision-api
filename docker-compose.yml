@@ -10,7 +10,9 @@ services:
     env_file: 
       - .env
     depends_on:
-      - elasticsearch
+      elasticsearch:
+        condition: service_healthy
+        required: true
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.12.0
@@ -21,6 +23,12 @@ services:
       - "9200:9200"
     volumes:
       - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: curl --fail --silent http://localhost:9200/_cluster/health || exit 1
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
 
 volumes:
   es_data:
