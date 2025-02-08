@@ -66,7 +66,7 @@ func sendConfirmationEmail(to, token string) error {
 
 	subject := "Confirm Your Email"
 	body := fmt.Sprintf(`
-		Hello!
+		Hello Eurovision-Ranker user!
 		
 		Please confirm your email by clicking the link below:
 		%s
@@ -84,7 +84,7 @@ func sendConfirmationEmail(to, token string) error {
 }
 
 func registerHandler(w http.ResponseWriter, r *http.Request) {
-	// Apply rate limiting
+	// apply rate limiting
 	if !limiter.Allow() {
 		http.Error(w, "Too many requests", http.StatusTooManyRequests)
 		return

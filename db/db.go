@@ -6,12 +6,10 @@ import (
 	"eurovision-api/models"
 	"fmt"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/elastic/go-elasticsearch/v8"
-	"github.com/elastic/go-elasticsearch/v8/esapi"
+	"github.com/olivere/elastic/v7"
 )
 
 const (
@@ -20,33 +18,46 @@ const (
 )
 
 var (
-	esClient *elasticsearch.Client
+	esClient *elastic.Client
 	once     sync.Once
 )
 
 /**
- * Initialize the Elasticsearch client and create the users index with proper mappings.
- * This function is idempotent and will only run once.
+ * initialize the es client and create the users index with mappings.
  */
 func InitES() error {
 	var initErr error
 	once.Do(func() {
-		cfg := elasticsearch.Config{
-			Addresses: []string{os.Getenv("ELASTICSEARCH_URL")},
-		}
-
-		esClient, initErr = elasticsearch.NewClient(cfg)
-		if initErr != nil {
+		client, err := elastic.NewClient(
+			elastic.SetURL(os.Getenv("ELASTICSEARCH_URL")),
+			elastic.SetSniff(false),
+		)
+		if err != nil {
+			initErr = err
 			return
 		}
-
-		// Create users index with proper mappings
+		esClient = client
 		initErr = createUsersIndex()
 	})
 	return initErr
 }
 
+/**
+ * creates the users index with proper mappings if it doesn't exist.
+ */
 func createUsersIndex() error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	exists, err := esClient.IndexExists(usersIndex).Do(ctx)
+	if err != nil {
+		return fmt.Errorf("error checking index existence: %v", err)
+	}
+
+	if exists {
+		return nil
+	}
+
 	mapping := `{
 		"mappings": {
 			"properties": {
@@ -72,172 +83,78 @@ func createUsersIndex() error {
 		}
 	}`
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	res, err := esClient.Indices.Create(
-		usersIndex,
-		esClient.Indices.Create.WithBody(strings.NewReader(mapping)),
-		esClient.Indices.Create.WithContext(ctx),
-	)
+	createIndex, err := esClient.CreateIndex(usersIndex).Body(mapping).Do(ctx)
 	if err != nil {
 		return fmt.Errorf("error creating index: %v", err)
 	}
-	defer res.Body.Close()
-
-	if res.IsError() {
-		// Ignore error if index already exists
-		if strings.Contains(res.String(), "resource_already_exists_exception") {
-			return nil
-		}
-		return fmt.Errorf("error creating index: %s", res.String())
+	if !createIndex.Acknowledged {
+		return fmt.Errorf("index creation not acknowledged")
 	}
 
 	return nil
 }
 
-// EmailExists checks if an email is already registered
+/**
+ * checks if an email is already registered in the users index
+ */
 func EmailExists(email string) (bool, error) {
-	query := map[string]interface{}{
-		"query": map[string]interface{}{
-			"term": map[string]interface{}{
-				"email": email,
-			},
-		},
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	res, err := esClient.Search(
-		esClient.Search.WithIndex(usersIndex),
-		esClient.Search.WithBody(strings.NewReader(convertToJSON(query))),
-		esClient.Search.WithContext(ctx),
-	)
+	query := elastic.NewTermQuery("email", email)
+	count, err := esClient.Count(usersIndex).Query(query).Do(ctx)
 	if err != nil {
 		return false, fmt.Errorf("error checking email: %v", err)
 	}
-	defer res.Body.Close()
 
-	var result map[string]interface{}
-	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
-		return false, fmt.Errorf("error parsing response: %v", err)
-	}
-
-	hits := result["hits"].(map[string]interface{})["total"].(map[string]interface{})["value"].(float64)
-	return hits > 0, nil
+	return count > 0, nil
 }
 
-// CreateUser creates a new user in Elasticsearch
+/**
+ * creates a new user in the Elasticsearch users index
+ */
 func CreateUser(user *models.User) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	res, err := esClient.Index(
-		usersIndex,
-		strings.NewReader(convertToJSON(user)),
-		esClient.Index.WithContext(ctx),
-		esClient.Index.WithRefresh("true"),
-	)
+	_, err := esClient.Index().
+		Index(usersIndex).
+		BodyJson(user).
+		Refresh("true").
+		Do(ctx)
+
 	if err != nil {
 		return fmt.Errorf("error creating user: %v", err)
-	}
-	defer res.Body.Close()
-
-	if res.IsError() {
-		return fmt.Errorf("error creating user: %s", res.String())
 	}
 
 	return nil
 }
 
-// GetUserByToken retrieves a user by their confirmation token
+/**
+ * gets a user by their confirmation token
+ */
 func GetUserByToken(token string) (*models.User, error) {
-	query := map[string]interface{}{
-		"query": map[string]interface{}{
-			"term": map[string]interface{}{
-				"confirmation_token": token,
-			},
-		},
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	res, err := esClient.Search(
-		esClient.Search.WithIndex(usersIndex),
-		esClient.Search.WithBody(strings.NewReader(convertToJSON(query))),
-		esClient.Search.WithContext(ctx),
-	)
+	query := elastic.NewTermQuery("confirmation_token", token)
+	result, err := esClient.Search().
+		Index(usersIndex).
+		Query(query).
+		Size(1).
+		Do(ctx)
+
 	if err != nil {
 		return nil, fmt.Errorf("error getting user: %v", err)
 	}
-	defer res.Body.Close()
 
-	var result map[string]interface{}
-	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("error parsing response: %v", err)
-	}
-
-	hits := result["hits"].(map[string]interface{})["hits"].([]interface{})
-	if len(hits) == 0 {
+	if result.TotalHits() == 0 {
 		return nil, fmt.Errorf("user not found")
 	}
 
-	source := hits[0].(map[string]interface{})["_source"]
-	userData, err := json.Marshal(source)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling user data: %v", err)
-	}
-
 	var user models.User
-	if err := json.Unmarshal(userData, &user); err != nil {
-		return nil, fmt.Errorf("error unmarshaling user: %v", err)
-	}
-
-	return &user, nil
-}
-
-func GetUserByEmail(email string) (*models.User, error) {
-	query := map[string]interface{}{
-		"query": map[string]interface{}{
-			"term": map[string]interface{}{
-				"email": email,
-			},
-		},
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	res, err := esClient.Search(
-		esClient.Search.WithIndex(usersIndex),
-		esClient.Search.WithBody(strings.NewReader(convertToJSON(query))),
-		esClient.Search.WithContext(ctx),
-	)
+	err = json.Unmarshal(result.Hits.Hits[0].Source, &user)
 	if err != nil {
-		return nil, fmt.Errorf("error getting user: %v", err)
-	}
-	defer res.Body.Close()
-
-	var result map[string]interface{}
-	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("error parsing response: %v", err)
-	}
-
-	hits := result["hits"].(map[string]interface{})["hits"].([]interface{})
-	if len(hits) == 0 {
-		return nil, fmt.Errorf("user not found")
-	}
-
-	source := hits[0].(map[string]interface{})["_source"]
-	userData, err := json.Marshal(source)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling user data: %v", err)
-	}
-
-	var user models.User
-	if err := json.Unmarshal(userData, &user); err != nil {
 		return nil, fmt.Errorf("error unmarshaling user: %v", err)
 	}
 
@@ -245,46 +162,58 @@ func GetUserByEmail(email string) (*models.User, error) {
 }
 
 /**
- * Updates the user's confirmed status and removes the confirmation token.
+ * gets a user by their email address.
  */
-func ConfirmUser(email string) error {
-	script := map[string]interface{}{
-		"script": map[string]interface{}{
-			"source": "ctx._source.confirmed = true; ctx._source.confirmation_token = null",
-		},
-		"query": map[string]interface{}{
-			"term": map[string]interface{}{
-				"email": email,
-			},
-		},
-	}
-
+func GetUserByEmail(email string) (*models.User, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	res, err := esClient.UpdateByQuery(
-		[]string{usersIndex},
-		esClient.UpdateByQuery.WithBody(strings.NewReader(convertToJSON(script))),
-		esClient.UpdateByQuery.WithContext(ctx),
-		esClient.UpdateByQuery.WithRefresh(true),
-	)
+	query := elastic.NewTermQuery("email", email)
+	result, err := esClient.Search().
+		Index(usersIndex).
+		Query(query).
+		Size(1).
+		Do(ctx)
+
+	if err != nil {
+		return nil, fmt.Errorf("error getting user: %v", err)
+	}
+
+	if result.TotalHits() == 0 {
+		return nil, fmt.Errorf("user not found")
+	}
+
+	var user models.User
+	err = json.Unmarshal(result.Hits.Hits[0].Source, &user)
+	if err != nil {
+		return nil, fmt.Errorf("error unmarshaling user: %v", err)
+	}
+
+	return &user, nil
+}
+
+/**
+ * updates the user's confirmed status and removes the confirmation token.
+ * Returns an error if the user is not found or the operation fails.
+ */
+func ConfirmUser(email string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	script := elastic.NewScript("ctx._source.confirmed = true; ctx._source.confirmation_token = null")
+	query := elastic.NewTermQuery("email", email)
+
+	result, err := esClient.UpdateByQuery(usersIndex).
+		Query(query).
+		Script(script).
+		Refresh("true").
+		Do(ctx)
+
 	if err != nil {
 		return fmt.Errorf("error confirming user: %v", err)
 	}
-	defer res.Body.Close()
 
-	if res.IsError() {
-		return fmt.Errorf("error confirming user: %s", res.String())
-	}
-
-	var result map[string]interface{}
-	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
-		return fmt.Errorf("error parsing response: %v", err)
-	}
-
-	// Check if any documents were updated
-	updated, ok := result["updated"].(float64)
-	if !ok || updated == 0 {
+	if result.Updated == 0 {
 		return fmt.Errorf("user not found with email: %s", email)
 	}
 
@@ -292,75 +221,46 @@ func ConfirmUser(email string) error {
 }
 
 /**
- * Deletes unconfirmed users that were created before the cutoff time.
+ * removes all unconfirmed users created before the cutoff time.
+ * Returns an error if the operation fails.
  */
 func DeleteUnconfirmedUsers(cutoff time.Time) error {
-	query := map[string]interface{}{
-		"query": map[string]interface{}{
-			"bool": map[string]interface{}{
-				"must": []map[string]interface{}{
-					{
-						"term": map[string]interface{}{
-							"confirmed": false,
-						},
-					},
-					{
-						"range": map[string]interface{}{
-							"created_at": map[string]interface{}{
-								"lt": cutoff.Format(time.RFC3339),
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	res, err := esClient.DeleteByQuery(
-		[]string{usersIndex},
-		strings.NewReader(convertToJSON(query)),
-		esClient.DeleteByQuery.WithContext(ctx),
-		esClient.DeleteByQuery.WithRefresh(true),
-	)
+	boolQuery := elastic.NewBoolQuery().
+		Must(
+			elastic.NewTermQuery("confirmed", false),
+			elastic.NewRangeQuery("created_at").Lt(cutoff),
+		)
+
+	_, err := esClient.DeleteByQuery().
+		Index(usersIndex).
+		Query(boolQuery).
+		Refresh("true").
+		Do(ctx)
+
 	if err != nil {
 		return fmt.Errorf("error deleting unconfirmed users: %v", err)
-	}
-	defer res.Body.Close()
-
-	if res.IsError() {
-		return fmt.Errorf("error deleting unconfirmed users: %s", res.String())
 	}
 
 	return nil
 }
 
 /**
- * Converts a value to JSON string.
+ * creates a new document in the specified index.
+ * Returns the response and any error that occurred.
  */
-func convertToJSON(v interface{}) string {
-	b, err := json.Marshal(v)
-	if err != nil {
-		panic(fmt.Sprintf("error marshaling to JSON: %v", err))
-	}
-	return string(b)
-}
-
-/**
- * Generates doc in the provided index.
- */
-func Index(index string, body *strings.Reader) (*esapi.Response, error) {
+func Index(index string, body interface{}) (*elastic.IndexResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	res, err := esClient.Index(
-		index,
-		body,
-		esClient.Index.WithContext(ctx),
-		esClient.Index.WithRefresh("true"),
-	)
+	res, err := esClient.Index().
+		Index(index).
+		BodyJson(body).
+		Refresh("true").
+		Do(ctx)
+
 	if err != nil {
 		return nil, fmt.Errorf("error indexing document: %v", err)
 	}
@@ -369,19 +269,16 @@ func Index(index string, body *strings.Reader) (*esapi.Response, error) {
 }
 
 /**
- * Counts the number of docs in the provided index.
+ * gets the number of docs in the specified index.
  */
-func Count(index string) (*esapi.Response, error) {
+func Count(index string) (int64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	res, err := esClient.Count(
-		esClient.Count.WithIndex(index),
-		esClient.Count.WithContext(ctx),
-	)
+	count, err := esClient.Count(index).Do(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("error counting documents: %v", err)
+		return 0, fmt.Errorf("error counting documents: %v", err)
 	}
 
-	return res, nil
+	return count, nil
 }

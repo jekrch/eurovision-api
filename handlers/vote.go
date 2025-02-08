@@ -93,15 +93,6 @@ func (h *VoteHandler) GetVoteCount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var count struct {
-		Count int `json:"count`
-	}
-
-	if err := json.NewDecoder(res.Body).Decode(&count); err != nil {
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(count)
+	json.NewEncoder(w).Encode(res)
 }
