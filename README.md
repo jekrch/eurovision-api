@@ -1,4 +1,4 @@
-# eurovision-voter :chart_with_upwards_trend:
+# eurovision-api :chart_with_upwards_trend:
 A GO based REST API with an ElasticSearch db for receiving and reporting on eurovision rankings from https://eurovision-ranker.com
 
 ## Features
