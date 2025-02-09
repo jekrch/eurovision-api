@@ -74,3 +74,57 @@ Returns a JWT token to be used in subsequent requests:
 ```
 Authorization: Bearer <token>
 ```
+
+#### Create Ranking
+```
+POST /api/rankings
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+    "name": "Final Jury Ranking",
+    "description": "jury rankings for Eurovision 2024",
+    "year": 2024,
+    "ranking": "foiwgu7ebqzvhrxjy.b.ddp.c4nm",
+    "group_ids": ["group1", "group2"]  // optional
+}
+```
+
+Response: `201 Created`
+
+#### Get User Rankings
+```
+GET /api/rankings
+Authorization: Bearer <token>
+```
+
+Returns an array of the authenticated user's rankings:
+```json
+[
+    {
+        "user_id": "user-uuid",
+        "ranking_id": "ranking-uuid",
+        "name": "Final Jury Ranking",
+        "description": "jury rankings for Eurovision 2024",
+        "year": 2024,
+        "ranking": "foiwgu7ebqzvhrxjy.b.ddp.c4nm",
+        "group_ids": ["group1", "group2"],
+        "created_at": "2024-02-09T23:22:41Z"
+    }
+]
+```
+
+#### Update Ranking
+```
+PUT /api/rankings/{ranking_id}
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+    "name": "Jury Ranking",
+    "description": "My updated rankings",
+    "year": 2024,
+    "ranking": "foiwgu7ebqzvhrxjy.b.ddp.c4nm",
+    "group_ids": ["group1", "group2"]
+}
+```
