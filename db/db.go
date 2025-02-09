@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	usersIndex = "users"
-	timeout    = 5 * time.Second
+	usersIndex    = "users"
+	rankingsIndex = "user_rankings"
+	timeout       = 5 * time.Second
 )
 
 var (
@@ -38,6 +39,7 @@ func InitES() error {
 		}
 		esClient = client
 		initErr = createUsersIndex()
+		initErr = CreateRankingsIndex()
 	})
 	return initErr
 }
@@ -61,6 +63,9 @@ func createUsersIndex() error {
 	mapping := `{
 		"mappings": {
 			"properties": {
+				"id": {
+					"type": "keyword"
+				},
 				"email": {
 					"type": "keyword"
 				},

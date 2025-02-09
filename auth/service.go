@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/time/rate"
 )
@@ -51,6 +52,7 @@ func (s *Service) RegisterUser(email, password string) error {
 	token, expiry := generateConfirmationToken()
 
 	user := models.User{
+		ID:                uuid.New().String(),
 		Email:             email,
 		PasswordHash:      string(hashedPassword),
 		Confirmed:         false,
@@ -95,8 +97,10 @@ func (s *Service) AuthenticateUser(email, password string) (string, error) {
 
 	// Generate JWT token
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"email": user.Email,
-		"exp":   time.Now().Add(24 * time.Hour).Unix(),
+		"email":   user.Email,
+		"user_id": user.ID,
+		"role":    "user",
+		"exp":     time.Now().Add(24 * time.Hour).Unix(),
 	})
 
 	return token.SignedString(s.jwtSecret)

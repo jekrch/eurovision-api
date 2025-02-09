@@ -45,7 +45,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	token, err := h.authService.AuthenticateUser(req.Email, req.Password)
 	if err != nil {
 		logrus.WithError(err).Error("Failed to authenticate user")
-		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 

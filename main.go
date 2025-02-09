@@ -35,10 +35,15 @@ func main() {
 	r.HandleFunc("/auth/login", authHandler.Login).Methods("POST")
 
 	// Vote routes - protected by auth middleware
-	voteRouter := r.PathPrefix("/api").Subrouter()
-	voteRouter.Use(auth.AuthMiddleware)
-	voteRouter.HandleFunc("/vote", voteHandler.HandleVote).Methods("POST")
-	voteRouter.HandleFunc("/votes/count", voteHandler.GetVoteCount).Methods("GET")
+	apiRouter := r.PathPrefix("/api").Subrouter()
+	apiRouter.Use(auth.AuthMiddleware)
+	apiRouter.HandleFunc("/vote", voteHandler.HandleVote).Methods("POST")
+	apiRouter.HandleFunc("/votes/count", voteHandler.GetVoteCount).Methods("GET")
+
+	rankingHandler := handlers.NewRankingHandler()
+	apiRouter.HandleFunc("/rankings", rankingHandler.CreateRanking).Methods("POST")
+	apiRouter.HandleFunc("/rankings", rankingHandler.UpdateRanking).Methods("PATCH")
+	apiRouter.HandleFunc("/rankings", rankingHandler.GetUserRankings).Methods("GET")
 
 	port := getPort()
 
