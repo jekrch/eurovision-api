@@ -11,7 +11,6 @@ A GO based REST API with an ElasticSearch db for receiving and reporting on euro
 ## Prerequisites
 
 - Docker and Docker Compose
-- Go 1.21 or later
 - Valid SMTP configuration for email sending
 
 ## Setup
