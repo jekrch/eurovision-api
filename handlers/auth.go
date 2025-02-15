@@ -49,7 +49,9 @@ type CompletePasswordResetRequest struct {
 	NewPassword string `json:"new_password"`
 }
 
-// InitiateRegistration handles the first step of registration (email only)
+/**
+ * handles the first step of registration, sends email with confirmation token
+ */
 func (h *AuthHandler) InitiateRegistration(w http.ResponseWriter, r *http.Request) {
 	if !h.authService.AllowRequest() {
 		http.Error(w, "Too many requests", http.StatusTooManyRequests)
@@ -82,7 +84,9 @@ func (h *AuthHandler) InitiateRegistration(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-// CompleteRegistration handles setting the password after email verification
+/**
+ * handles the second step of registration, setting user pw
+ */
 func (h *AuthHandler) CompleteRegistration(w http.ResponseWriter, r *http.Request) {
 	if !h.authService.AllowRequest() {
 		http.Error(w, "Too many requests", http.StatusTooManyRequests)
@@ -150,6 +154,9 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+/**
+ * handles the first step of password reset, sends email with reset token
+ */
 func (h *AuthHandler) InitiatePasswordReset(w http.ResponseWriter, r *http.Request) {
 	if !h.authService.AllowRequest() {
 		http.Error(w, "Too many requests", http.StatusTooManyRequests)
@@ -164,7 +171,7 @@ func (h *AuthHandler) InitiatePasswordReset(w http.ResponseWriter, r *http.Reque
 
 	err := h.authService.InitiatePasswordReset(req.Email)
 	if err != nil {
-		// Don't reveal if email exists or not
+		// don't reveal if email exists or not
 		logrus.WithError(err).Error("Failed to initiate password reset")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{
@@ -179,6 +186,9 @@ func (h *AuthHandler) InitiatePasswordReset(w http.ResponseWriter, r *http.Reque
 	})
 }
 
+/*
+ * handles the second step of password reset, sets new user pw
+ */
 func (h *AuthHandler) CompletePasswordReset(w http.ResponseWriter, r *http.Request) {
 	if !h.authService.AllowRequest() {
 		http.Error(w, "Too many requests", http.StatusTooManyRequests)

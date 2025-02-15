@@ -3,7 +3,8 @@ A GO based REST API with an ElasticSearch db for receiving and reporting on euro
 
 ## Features
 
-- User registration with email confirmation
+- Secure user registration with email verification
+- Two-step password reset process
 - JWT-based authentication
 - Elasticsearch for data storage
 - Kibana dashboard for data visualization
@@ -23,42 +24,64 @@ SMTP_PORT=587
 EMAIL_USERNAME=your-username
 EMAIL_PASSWORD=your-password
 JWT_SECRET=your-secret-key
+APP_BASE_URL=http://localhost:8080 # Used for email verification links
 ```
 
-3. Start services:
+2. Start services:
 ```bash
 docker-compose up -d
 ```
 
-4. Access API at 
+3. Access API at 
 ```
 http://localhost:8080
 ```
 
-5. Kibana available at 
+4. Kibana available at 
 ```
 http://localhost:5601
 ```
 
 ## API Endpoints
 
-### Register User
+### Authentication
+
+#### Initiate Registration
 ```
-POST /auth/register
+POST /auth/register/initiate
 Content-Type: application/json
 
 {
-    "email": "user@example.com",
+    "email": "user@example.com"
+}
+```
+
+Response:
+```json
+{
+    "message": "Please check your email to complete registration."
+}
+```
+
+#### Complete Registration
+```
+POST /auth/register/complete
+Content-Type: application/json
+
+{
+    "token": "token-from-email",
     "password": "yourpassword"
 }
 ```
 
-### Confirm Registration
-```
-GET /auth/confirm?token=confirmation-token
+Response:
+```json
+{
+    "message": "Registration completed successfully. You can now log in."
+}
 ```
 
-### Login
+#### Login
 ```
 POST /auth/login
 Content-Type: application/json
@@ -69,10 +92,54 @@ Content-Type: application/json
 }
 ```
 
-Returns a JWT token to be used in subsequent requests:
+Response:
+```json
+{
+    "token": "your-jwt-token"
+}
+```
+
+Use this token in subsequent requests:
 ```
 Authorization: Bearer <token>
 ```
+
+#### Initiate Password Reset
+```
+POST /auth/password/reset
+Content-Type: application/json
+
+{
+    "email": "user@example.com"
+}
+```
+
+Response:
+```json
+{
+    "message": "If your email exists in our system, you will receive password reset instructions."
+}
+```
+
+#### Complete Password Reset
+```
+POST /auth/password/complete
+Content-Type: application/json
+
+{
+    "token": "token-from-email",
+    "new_password": "yournewpassword"
+}
+```
+
+Response:
+```json
+{
+    "message": "Password has been reset successfully. You can now log in with your new password."
+}
+```
+
+### Rankings
 
 #### Create Ranking
 ```
@@ -127,3 +194,11 @@ Content-Type: application/json
     "group_ids": ["group1", "group2"]
 }
 ```
+
+## Auth features
+
+- Passwords must be at least 8 characters long
+- Email verification is required before account activation
+- Rate limiting is applied to all authentication endpoints
+- Password reset tokens expire after 24 hours
+- JWT tokens expire after 24 hours
