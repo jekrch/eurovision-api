@@ -13,18 +13,7 @@ import (
 /**
  * creates the rankings index with proper mappings if it doesn't exist.
  */
-func CreateRankingsIndex() error {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	exists, err := esClient.IndexExists(rankingsIndex).Do(ctx)
-	if err != nil {
-		return fmt.Errorf("error checking index existence: %v", err)
-	}
-
-	if exists {
-		return nil
-	}
+func createRankingsIndex() error {
 
 	mapping := `{
         "mappings": {
@@ -57,16 +46,7 @@ func CreateRankingsIndex() error {
         }
     }`
 
-	createIndex, err := esClient.CreateIndex(rankingsIndex).Body(mapping).Do(ctx)
-
-	if err != nil {
-		return fmt.Errorf("error creating index: %v", err)
-	}
-	if !createIndex.Acknowledged {
-		return fmt.Errorf("index creation not acknowledged")
-	}
-
-	return nil
+	return createIndex(rankingsIndex, mapping)
 }
 
 /**

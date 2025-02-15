@@ -30,8 +30,12 @@ func main() {
 	r := mux.NewRouter()
 
 	// Auth routes
-	r.HandleFunc("/auth/register", authHandler.Register).Methods("POST")
-	r.HandleFunc("/auth/confirm", authHandler.Confirm).Methods("GET")
+	r.HandleFunc("/auth/register/initiate", authHandler.InitiateRegistration).Methods("POST")
+	r.HandleFunc("/auth/register/complete", authHandler.CompleteRegistration).Methods("POST")
+
+	r.HandleFunc("/auth/password/reset", authHandler.InitiatePasswordReset).Methods("POST")
+	r.HandleFunc("/auth/password/complete", authHandler.CompletePasswordReset).Methods("POST")
+
 	r.HandleFunc("/auth/login", authHandler.Login).Methods("POST")
 
 	// Vote routes - protected by auth middleware

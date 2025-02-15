@@ -3,9 +3,7 @@ package auth
 import (
 	"errors"
 	"eurovision-api/db"
-	"eurovision-api/models"
 	"fmt"
-	"net/http"
 	"net/mail"
 	"net/smtp"
 	"os"
@@ -13,7 +11,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/time/rate"
 )
 
@@ -32,9 +29,10 @@ var (
 	ErrTokenExpired = errors.New("confirmation token expired")
 	ErrInvalidToken = errors.New("invalid token")
 
-	ErrInvalidCredentials = errors.New("invalid email or password")
-	ErrUnconfirmedEmail   = errors.New("email not confirmed")
-	ErrUserNotFound       = errors.New("user not found")
+	ErrInvalidCredentials     = errors.New("invalid email or password")
+	ErrUnconfirmedEmail       = errors.New("email not confirmed")
+	ErrUserNotFound           = errors.New("user not found")
+	ErrRegistrationIncomplete = errors.New("registration not completed")
 )
 
 func generateConfirmationToken() (string, time.Time) {
@@ -55,134 +53,60 @@ func validatePassword(password string) error {
 	return nil
 }
 
-func sendConfirmationEmail(to, token string) error {
-	from := os.Getenv("EMAIL_USER")
-	password := os.Getenv("EMAIL_PASSWORD")
-	smtpHost := os.Getenv("SMTP_HOST")
-	smtpPort := os.Getenv("SMTP_PORT")
+func sendVerificationEmail(to, token string) error {
 
 	baseURL := os.Getenv("APP_BASE_URL")
-	confirmURL := fmt.Sprintf("%s/confirm?token=%s", baseURL, token)
+	verifyURL := fmt.Sprintf("%s/complete-registration?token=%s", baseURL, token)
 
-	subject := "Confirm Your Email"
+	subject := "Complete Your Registration"
 	body := fmt.Sprintf(`
 		Hello Eurovision-Ranker user!
 		
-		Please confirm your email by clicking the link below:
+		Click the link below to verify your email and set your password:
 		%s
 		
 		This link will expire in %d hours.
 		
 		If you didn't create this account, please ignore this email.
-	`, confirmURL, tokenExpiryHours)
+	`, verifyURL, tokenExpiryHours)
+
+	return sendEmail(to, subject, body)
+}
+
+func sendPasswordResetEmail(to, token string) error {
+
+	baseURL := os.Getenv("APP_BASE_URL")
+
+	resetURL := fmt.Sprintf("%s/reset-password?token=%s", baseURL, token)
+
+	subject := "Reset Your Password"
+	body := fmt.Sprintf(`
+		Hello Eurovision-Ranker user!
+		
+		Click the link below to reset your password:
+		%s
+		
+		This link will expire in %d hours.
+		
+		If you didn't request this password reset, please ignore this email.
+	`, resetURL, tokenExpiryHours)
+
+	return sendEmail(to, subject, body)
+}
+
+func sendEmail(to, subject, body string) error {
+
+	from := os.Getenv("EMAIL_USER")
+	password := os.Getenv("EMAIL_PASSWORD")
+	host := os.Getenv("SMTP_HOST")
+	port := os.Getenv("SMTP_PORT")
 
 	msg := fmt.Sprintf("To: %s\r\nSubject: %s\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n%s",
 		to, subject, body)
 
-	auth := smtp.PlainAuth("", from, password, smtpHost)
-	return smtp.SendMail(smtpHost+":"+smtpPort, auth, from, []string{to}, []byte(msg))
-}
+	auth := smtp.PlainAuth("", from, password, host)
 
-func registerHandler(w http.ResponseWriter, r *http.Request) {
-	// apply rate limiting
-	if !limiter.Allow() {
-		http.Error(w, "Too many requests", http.StatusTooManyRequests)
-		return
-	}
-
-	email := r.FormValue("email")
-	password := r.FormValue("password")
-
-	if err := validateEmail(email); err != nil {
-		http.Error(w, ErrInvalidEmail.Error(), http.StatusBadRequest)
-		return
-	}
-
-	if err := validatePassword(password); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		logrus.Error("Failed to hash password", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	// Check if email exists using proper index
-	exists, err := db.EmailExists(email)
-	if err != nil {
-		logrus.Error("Failed to check email existence", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-	if exists {
-		http.Error(w, ErrEmailExists.Error(), http.StatusBadRequest)
-		return
-	}
-
-	token, expiry := generateConfirmationToken()
-
-	user := models.User{
-		Email:             email,
-		PasswordHash:      string(hashedPassword),
-		Confirmed:         false,
-		ConfirmationToken: token,
-		TokenExpiry:       expiry,
-		CreatedAt:         time.Now(),
-	}
-
-	if err := db.CreateUser(&user); err != nil {
-		logrus.Error("Failed to create user", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	if err := sendConfirmationEmail(email, token); err != nil {
-		logrus.Error("Failed to send confirmation email", "error", err)
-		// Consider rolling back user creation here
-		http.Error(w, "Failed to send confirmation email", http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusCreated)
-	fmt.Fprintf(w, "Registration successful. Please check your email to confirm your account.")
-}
-
-func confirmHandler(w http.ResponseWriter, r *http.Request) {
-	if !limiter.Allow() {
-		http.Error(w, "Too many requests", http.StatusTooManyRequests)
-		return
-	}
-
-	token := r.URL.Query().Get("token")
-	if token == "" {
-		http.Error(w, ErrInvalidToken.Error(), http.StatusBadRequest)
-		return
-	}
-
-	user, err := db.GetUserByToken(token)
-	if err != nil {
-		logrus.Error("Failed to get user by token", "error", err)
-		http.Error(w, ErrInvalidToken.Error(), http.StatusBadRequest)
-		return
-	}
-
-	if user.TokenExpiry.Before(time.Now()) {
-		http.Error(w, ErrTokenExpired.Error(), http.StatusBadRequest)
-		return
-	}
-
-	// Atomic update
-	if err := db.ConfirmUser(user.Email); err != nil {
-		logrus.Error("Failed to confirm user", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "Email confirmed successfully. You can now log in.")
+	return smtp.SendMail(host+":"+port, auth, from, []string{to}, []byte(msg))
 }
 
 // Cleanup job to remove unconfirmed users
