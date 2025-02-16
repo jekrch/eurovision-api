@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"github.com/olivere/elastic/v7"
-	"github.com/sirupsen/logrus"
 )
 
 /**
@@ -87,8 +86,8 @@ func GetRankingsByUserID(userID string) ([]models.UserRanking, error) {
 		Size(100).
 		Do(ctx)
 
-	logrus.Print("query: ", query)
-	logrus.Print("result: ", result)
+	//logrus.Print("query: ", query)
+	//logrus.Print("result: ", result)
 
 	if err != nil {
 		return nil, fmt.Errorf("error getting rankings: %v", err)

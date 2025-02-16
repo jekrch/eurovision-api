@@ -129,3 +129,29 @@ func DeleteByFieldValue(indexName, fieldName, value string) error {
 
 	return nil
 }
+
+/*
+counts the number of documents in the specified index where the field value matches
+the provided value.
+*/
+func CountByFieldValue(indexName, fieldName, value string) (int64, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	boolQuery := elastic.NewBoolQuery().
+		Must(
+			elastic.NewTermQuery(fieldName, value),
+		)
+
+	result, err := esClient.Count().
+		Index(indexName).
+		Query(boolQuery).
+		Do(ctx)
+
+	if err != nil {
+		logrus.Errorf("error counting %s doc with %s = %s: %v", indexName, fieldName, value, err)
+		return -1, err
+	}
+
+	return result, nil
+}

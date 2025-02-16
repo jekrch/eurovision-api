@@ -23,6 +23,8 @@ func main() {
 		log.Fatalf("Failed to initialize short id generator: %v", err)
 	}
 
+	handlers.InitRankingSettings()
+
 	jwtSecret := os.Getenv("JWT_SECRET")
 
 	auth.Initialize(jwtSecret)

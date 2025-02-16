@@ -24,7 +24,9 @@ SMTP_PORT=587
 EMAIL_USERNAME=your-username
 EMAIL_PASSWORD=your-password
 JWT_SECRET=your-secret-key
-APP_BASE_URL=http://localhost:8080 # Used for email verification links
+APP_BASE_URL=http://localhost:8080 # used for email verification links
+SHORT_ID_SEED=123123 # used to generate short unique ids. can be any int64 
+MAX_USER_RANKINGS=20 # indicates the max number of rankings a user may have
 ```
 
 2. Start services:
@@ -169,7 +171,7 @@ Returns an array of the authenticated user's rankings:
 [
     {
         "user_id": "user-uuid",
-        "ranking_id": "ranking-uuid",
+        "ranking_id": "YawxtgErM",
         "name": "Final Jury Ranking",
         "description": "jury rankings for Eurovision 2024",
         "year": 2024,
@@ -180,9 +182,39 @@ Returns an array of the authenticated user's rankings:
 ]
 ```
 
+#### Get Specific Ranking
+```
+GET /api/rankings/{id}
+Authorization: Bearer <token>
+```
+
+Returns a specific ranking by its ID:
+```json
+{
+    "user_id": "user-uuid",
+    "ranking_id": "YawxtgErM",
+    "name": "Final Jury Ranking",
+    "description": "jury rankings for Eurovision 2024",
+    "year": 2024,
+    "ranking": "foiwgu7ebqzvhrxjy.b.ddp.c4nm",
+    "public": true,
+    "group_ids": ["group1", "group2"],
+    "created_at": "2024-02-09T23:22:41Z"
+}
+```
+The ranking must be either owned by the requesting user or marked public
+
+#### Delete Ranking
+```
+DELETE /api/rankings/{id}
+Authorization: Bearer <token>
+```
+
+Deletes a specific ranking. Returns `200` on success.
+
 #### Update Ranking
 ```
-PUT /api/rankings/{ranking_id}
+PUT /api/rankings/{id}
 Authorization: Bearer <token>
 Content-Type: application/json
 

@@ -6,12 +6,18 @@ import (
 	"eurovision-api/db"
 	"eurovision-api/models"
 	"eurovision-api/utils"
+	"fmt"
 	"net/http"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
 )
+
+// maximum number of rankings a user can have
+var maxRankings int64
 
 type RankingHandler struct {
 }
@@ -21,17 +27,49 @@ func NewRankingHandler() *RankingHandler {
 }
 
 /**
+ * initializes ranking settings
+ */
+func InitRankingSettings() error {
+	maxRankingsString := os.Getenv("MAX_USER_RANKINGS")
+
+	logrus.Infof("MAX_USER_RANKINGS: %s", maxRankingsString)
+
+	num, err := strconv.Atoi(maxRankingsString)
+
+	if err != nil {
+		fmt.Println("Error:", err)
+		logrus.Panic("Error initializing ranking settings: ", err)
+	}
+
+	maxRankings = int64(num)
+
+	return nil
+}
+
+/**
  * creates a new user ranking
  */
 func (h *RankingHandler) CreateRanking(w http.ResponseWriter, r *http.Request) {
+
+	userID, nil := auth.GetUserIDFromContext(r.Context())
+
+	count, nil := db.CountByFieldValue(db.RankingsIndex, "user_id", userID)
+
+	if count >= maxRankings {
+		logrus.Infof("User %s has reached the maximum number of rankings, %d", userID, maxRankings)
+		http.Error(
+			w,
+			fmt.Sprintf("Maximum number of rankings already reached: %d", maxRankings),
+			http.StatusBadRequest,
+		)
+		return
+	}
 
 	ranking, valid := utils.DecodeRequestBody[models.UserRanking](w, r)
 
 	if !valid {
 		return
 	}
-
-	userID, nil := auth.GetUserIDFromContext(r.Context())
 
 	ranking.CreatedAt = time.Now()
 	ranking.UserID = userID
@@ -189,9 +227,9 @@ func getRanking(rankingID string, w http.ResponseWriter) *models.UserRanking {
 	return existingRanking
 }
 
-/**
- * Retrieves all rankings for a specific user
- */
+/*
+Retrieves all rankings for a specific user
+*/
 func (h *RankingHandler) GetUserRankings(w http.ResponseWriter, r *http.Request) {
 
 	userID, nil := auth.GetUserIDFromContext(r.Context())
@@ -202,6 +240,7 @@ func (h *RankingHandler) GetUserRankings(w http.ResponseWriter, r *http.Request)
 	}
 
 	rankings, err := db.GetRankingsByUserID(userID)
+
 	if err != nil {
 		logrus.Error("Error fetching rankings: ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
