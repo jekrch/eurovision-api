@@ -39,6 +39,9 @@ func createRankingsIndex() error {
                 "group_ids": {
                     "type": "keyword"
                 },
+				"public": {
+					"type": "boolean"
+				},
                 "created_at": {
                     "type": "date"
                 }
@@ -46,7 +49,7 @@ func createRankingsIndex() error {
         }
     }`
 
-	return createIndex(rankingsIndex, mapping)
+	return createIndex(RankingsIndex, mapping)
 }
 
 /**
@@ -57,7 +60,7 @@ func CreateRanking(ranking *models.UserRanking) error {
 	defer cancel()
 
 	_, err := esClient.Index().
-		Index(rankingsIndex).
+		Index(RankingsIndex).
 		BodyJson(ranking).
 		Refresh("true").
 		Do(ctx)
@@ -78,7 +81,7 @@ func GetRankingsByUserID(userID string) ([]models.UserRanking, error) {
 
 	query := elastic.NewTermQuery("user_id", userID)
 	result, err := esClient.Search().
-		Index(rankingsIndex).
+		Index(RankingsIndex).
 		Query(query).
 		Sort("created_at", false).
 		Size(100).
@@ -113,7 +116,7 @@ func GetRankingByID(rankingID string) (*models.UserRanking, error) {
 
 	query := elastic.NewTermQuery("ranking_id", rankingID)
 	result, err := esClient.Search().
-		Index(rankingsIndex).
+		Index(RankingsIndex).
 		Query(query).
 		Size(1).
 		Do(ctx)
@@ -143,7 +146,7 @@ func UpdateRanking(ranking *models.UserRanking) error {
 	defer cancel()
 
 	_, err := esClient.Update().
-		Index(rankingsIndex).
+		Index(RankingsIndex).
 		Id(ranking.RankingID).
 		Doc(ranking).
 		Refresh("true").

@@ -8,11 +8,12 @@ import (
 	"time"
 
 	"github.com/olivere/elastic/v7"
+	"github.com/sirupsen/logrus"
 )
 
 const (
 	usersIndex    = "users"
-	rankingsIndex = "user_rankings"
+	RankingsIndex = "user_rankings"
 	timeout       = 5 * time.Second
 )
 
@@ -104,4 +105,27 @@ func Count(index string) (int64, error) {
 	}
 
 	return count, nil
+}
+
+func DeleteByFieldValue(indexName, fieldName, value string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	boolQuery := elastic.NewBoolQuery().
+		Must(
+			elastic.NewTermQuery(fieldName, value),
+		)
+
+	_, err := esClient.DeleteByQuery().
+		Index(indexName).
+		Query(boolQuery).
+		Refresh("true").
+		Do(ctx)
+
+	if err != nil {
+		logrus.Errorf("error deleting %s doc with %s = %s: %v", indexName, fieldName, value, err)
+		return err
+	}
+
+	return nil
 }

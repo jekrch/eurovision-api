@@ -53,6 +53,9 @@ func main() {
 	apiRouter.HandleFunc("/rankings", rankingHandler.CreateRanking).Methods("POST")
 	apiRouter.HandleFunc("/rankings", rankingHandler.UpdateRanking).Methods("PATCH")
 	apiRouter.HandleFunc("/rankings", rankingHandler.GetUserRankings).Methods("GET")
+	apiRouter.HandleFunc("/rankings", rankingHandler.GetUserRankings).Methods("GET")
+	apiRouter.HandleFunc("/rankings/{rankingID}", rankingHandler.GetRanking).Methods("GET")
+	apiRouter.HandleFunc("/rankings/{rankingID}", rankingHandler.DeleteRanking).Methods("DELETE")
 
 	port := getPort()
 
