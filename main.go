@@ -13,9 +13,14 @@ import (
 
 func main() {
 
-	// Initialize Elasticsearch
+	// init Elasticsearch client and indices
 	if err := db.InitES(); err != nil {
 		log.Fatalf("Failed to initialize Elasticsearch: %v", err)
+	}
+
+	// init short id generator
+	if err := handlers.InitShortID(); err != nil {
+		log.Fatalf("Failed to initialize short id generator: %v", err)
 	}
 
 	jwtSecret := os.Getenv("JWT_SECRET")

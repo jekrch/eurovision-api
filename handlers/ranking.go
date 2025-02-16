@@ -5,10 +5,10 @@ import (
 	"eurovision-api/auth"
 	"eurovision-api/db"
 	"eurovision-api/models"
+	"eurovision-api/utils"
 	"net/http"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 )
 
@@ -22,8 +22,8 @@ func NewRankingHandler() *RankingHandler {
 /**
  * creates a new user ranking
  */
-
 func (h *RankingHandler) CreateRanking(w http.ResponseWriter, r *http.Request) {
+
 	var ranking models.UserRanking
 	if err := json.NewDecoder(r.Body).Decode(&ranking); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -34,7 +34,7 @@ func (h *RankingHandler) CreateRanking(w http.ResponseWriter, r *http.Request) {
 
 	ranking.CreatedAt = time.Now()
 	ranking.UserID = userID
-	ranking.RankingID = uuid.New().String()
+	ranking.RankingID = GenerateShortID()
 
 	err := db.CreateRanking(&ranking)
 
@@ -47,13 +47,18 @@ func (h *RankingHandler) CreateRanking(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 }
 
+func (h *RankingHandler) DeleteRanking(w http.ResponseWriter, r *http.Request) {
+
+}
+
 /**
  * updates an existing user ranking
  */
 func (h *RankingHandler) UpdateRanking(w http.ResponseWriter, r *http.Request) {
-	var ranking models.UserRanking
-	if err := json.NewDecoder(r.Body).Decode(&ranking); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+
+	ranking, valid := utils.DecodeRequestBody[models.UserRanking](w, r)
+
+	if !valid {
 		return
 	}
 
@@ -64,15 +69,8 @@ func (h *RankingHandler) UpdateRanking(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// verify the ranking exists and belongs to the user
-	existingRanking, err := db.GetRankingByID(ranking.RankingID)
-
-	if err != nil {
-		if err.Error() == "ranking not found" {
-			http.Error(w, "Ranking not found", http.StatusNotFound)
-		} else {
-			logrus.Error("Error fetching ranking: ", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
+	existingRanking := getRanking(ranking.RankingID, w)
+	if existingRanking == nil {
 		return
 	}
 
@@ -96,6 +94,22 @@ func (h *RankingHandler) UpdateRanking(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func getRanking(rankingID string, w http.ResponseWriter) *models.UserRanking {
+
+	existingRanking, err := db.GetRankingByID(rankingID)
+
+	if err != nil {
+		if err.Error() == "ranking not found" {
+			http.Error(w, "Ranking not found", http.StatusNotFound)
+		} else {
+			logrus.Error("Error fetching ranking: ", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return nil
+	}
+	return existingRanking
 }
 
 /**
