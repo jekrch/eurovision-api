@@ -1,0 +1,6 @@
+@EurovisionRanker.Api_HostAddress = http://localhost:5046
+
+GET {{EurovisionRanker.Api_HostAddress}}
+Accept: application/json
+
+###
