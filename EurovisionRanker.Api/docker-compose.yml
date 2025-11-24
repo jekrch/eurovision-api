@@ -5,36 +5,40 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "5001:8080" 
+      - "${API_PORT}:8080" 
     environment:
-      # OVERRIDE the connection string to point to the local 'db' service
-      - ConnectionStrings__DefaultConnection=Server=db;Port=5432;Database=eurovision_local_db;User Id=local_user;Password=local_pass;SearchPath=ranker
-      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT}
+      # .NET automatically maps double underscores (__) to configuration hierarchy (Jwt:Key)
+      - Jwt__Key=${JWT_SECRET} 
+      # Construct connection string dynamically using .env values
+      - ConnectionStrings__DefaultConnection=Server=db;Port=5432;Database=${DB_NAME};User Id=${DB_USER};Password=${DB_PASSWORD};SearchPath=ranker
     depends_on:
       - db
       - flyway
 
-  # 2. (Local only)
+  # 2. Database (Local)
   db:
     image: postgres:15-alpine
     environment:
-      - POSTGRES_DB=eurovision_local_db
-      - POSTGRES_USER=local_user
-      - POSTGRES_PASSWORD=local_pass
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
     ports:
-      - "5488:5432" 
+      - "${DB_PORT}:5432" 
     volumes:
       - local_pg_data:/var/lib/postgresql/data
 
+  # 3. Migrations
   flyway:
     image: flyway/flyway:latest
     command: -connectRetries=60 migrate
     volumes:
-      - ./EurovisionRanker.Api/db/migration:/flyway/sql # Point to your SQL folder
+      - ./EurovisionRanker.Api/db/migration:/flyway/sql 
     environment:
-      - FLYWAY_URL=jdbc:postgresql://db:5432/eurovision_local_db
-      - FLYWAY_USER=local_user
-      - FLYWAY_PASSWORD=local_pass
+      # Flyway uses JDBC syntax
+      - FLYWAY_URL=jdbc:postgresql://db:5432/${DB_NAME}
+      - FLYWAY_USER=${DB_USER}
+      - FLYWAY_PASSWORD=${DB_PASSWORD}
     depends_on:
       - db
 

@@ -10,7 +10,6 @@
 
         // The raw URL-encoded string 
         public required string RankingString { get; set; }
-
         public DateTime UpdatedAt { get; set; }
     }
 }

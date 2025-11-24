@@ -1,0 +1,88 @@
+# If you prefer the allow list template instead of the deny list, see community template:
+# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
+#
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+.env
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
+go.work
+go.work.sum
+
+# env file
+.env
+
+# =====================
+# 1. .NET Build Artifacts
+# =====================
+[Bb]in/
+[Oo]bj/
+/out/
+
+# =====================
+# 2. User Specific / IDE Settings
+# =====================
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userprefs
+
+# VS Code (Optional: keep tasks.json, ignore local launch configs)
+.vscode/
+
+# JetBrains (Rider)
+.idea/
+
+appsettings.Development.json
+appsettings.Production.json
+
+# =====================
+# 4. Docker
+# =====================
+# Local overrides for docker-compose
+docker-compose.override.yml
+
+postgres-data/
+pgdata/
+
+# =====================
+# 5. OS Generated Files
+# =====================
+# Mac
+.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# =====================
+# 6. Logs & Misc
+# =====================
+*.log
+*.sql.log
+
+# Visual Studio cache
+.vs/
+**/.vs/
+
+# Build results
+[Bb]in/
+[Oo]bj/
+**/obj/
+**/bin/
